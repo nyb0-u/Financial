@@ -2,6 +2,25 @@
 
 Asisten pencatatan keuangan pribadi dengan dashboard web, akun multi-user, bot Telegram, kategorisasi transaksi, dan sinkronisasi opsional Google Sheets.
 
+## Deploy ke Netlify
+
+Netlify menyajikan dashboard statis dari `public/` dan menjalankan endpoint `/api/*` melalui Netlify Function di `netlify/functions/api.mjs`. Setiap request API diteruskan ke handler Node aplikasi; data akun dan transaksi harus memakai Firebase karena filesystem dan proses Netlify Functions tidak persisten. Dashboard menyegarkan data Firebase setiap 30 detik, bukan memakai koneksi realtime SSE yang terus terbuka.
+
+1. Hubungkan repository GitHub ke Netlify. `netlify.toml` menetapkan build command `npm run build`, publish directory `public/`, dan functions directory `netlify/functions/`.
+2. Di Netlify → **Site configuration → Environment variables**, tambahkan variables/secrets berikut dengan scope **Functions** (dan **Builds** bila diminta):
+   - `AUTOCATAT_STORE_BACKEND=firebase`
+   - `AUTOCATAT_STORE_LOCAL_FALLBACK=false`
+   - `FIREBASE_DATABASE_URL`: URL HTTPS Realtime Database.
+   - `FIREBASE_SERVICE_ACCOUNT_JSON`: seluruh JSON Service Account Firebase yang memiliki izin database.
+   - `ADMIN_SETUP_KEY`: kunci acak baru untuk membuat admin pertama.
+   - `COOKIE_SECURE=true`.
+   - Opsional Telegram: `AUTOCATAT_TELEGRAM_WEBHOOK_ONLY=true`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, dan `TELEGRAM_BOT_USERNAME`.
+   - Opsional AI: `GEMINI_API_KEY`. Opsional Sheets: `GOOGLE_SHEETS_ID`, `GOOGLE_SHEETS_TAB`, dan `GOOGLE_SERVICE_ACCOUNT_JSON`.
+3. Deploy dari Netlify, buka URL situs, lalu buat akun admin pertama menggunakan `ADMIN_SETUP_KEY`. Setelah berhasil, hapus secret itu dari Netlify dan deploy ulang.
+4. Untuk Telegram, daftarkan webhook ke `https://<nama-situs>.netlify.app/api/telegram/webhook` dengan `secret_token` yang sama dengan `TELEGRAM_WEBHOOK_SECRET`. Function memeriksa header secret Telegram; polling bot tidak dipakai di Netlify.
+
+Jangan masukkan kredensial ke `netlify.toml` atau Git. Atur secret di dashboard Netlify. Jika memakai domain kustom, gunakan domain HTTPS yang sama untuk situs dan webhook. Migrasikan data lama ke Firebase terlebih dahulu; Netlify tidak menyimpan `data/store.json`.
+
 ## Deploy ke Cloudflare Workers
 
 Worker ini menyajikan dashboard dari Cloudflare Assets, menjalankan backend Node melalui kompatibilitas HTTP Cloudflare, dan menyimpan data persisten di Firebase Realtime Database. Penyimpanan lokal `data/store.json` hanya untuk mode Node lokal dan tidak dipakai di Worker.

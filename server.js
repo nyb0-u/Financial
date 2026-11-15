@@ -99,6 +99,7 @@ function publicConfig() {
         (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY)),
     ),
     firebase: process.env.AUTOCATAT_STORE_BACKEND === "firebase",
+    realtime: process.env.AUTOCATAT_REALTIME !== "false",
     telegramBotUsername: process.env.TELEGRAM_BOT_USERNAME || "",
     categories: CATEGORIES,
   };

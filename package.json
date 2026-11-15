@@ -4,6 +4,7 @@
   "private": true,
   "description": "Asisten pencatatan keuangan Telegram dengan dashboard dan Google Sheets",
   "scripts": {
+    "build": "node --check server.js && node --check public/app.js && node --check netlify/functions/api.mjs",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "cloudflare:dev": "wrangler dev",
@@ -16,5 +17,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "serverless-http": "^4.0.0"
   }
 }

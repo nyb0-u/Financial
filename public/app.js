@@ -12,6 +12,7 @@ const state = {
   account: null,
   firebaseEvents: null,
   realtimeRefreshTimer: null,
+  realtimePollingTimer: null,
   vaultRecord: null,
   vaultSalt: null,
   vaultKey: null,
@@ -70,6 +71,10 @@ async function api(url, options = {}) {
   const result = await response.json().catch(() => ({}));
   if (response.status === 401 && state.user) {
     lockVault();
+    state.firebaseEvents?.close();
+    state.firebaseEvents = null;
+    clearInterval(state.realtimePollingTimer);
+    state.realtimePollingTimer = null;
     state.user = null;
     state.csrfToken = "";
     showAuthScreen("login");
@@ -97,9 +102,24 @@ function connectFirebaseEvents() {
   if (!state.config?.firebase) {
     state.firebaseEvents?.close();
     state.firebaseEvents = null;
+    clearInterval(state.realtimePollingTimer);
+    state.realtimePollingTimer = null;
     setFirebaseStatus("Penyimpanan lokal", false);
     return;
   }
+  if (state.config.realtime === false) {
+    state.firebaseEvents?.close();
+    state.firebaseEvents = null;
+    if (!state.realtimePollingTimer) {
+      setFirebaseStatus("Sinkronisasi tiap 30 detik", true);
+      state.realtimePollingTimer = setInterval(() => {
+        refresh().catch((error) => toast(error.message));
+      }, 30_000);
+    }
+    return;
+  }
+  clearInterval(state.realtimePollingTimer);
+  state.realtimePollingTimer = null;
   if (state.firebaseEvents) return;
   const events = new EventSource("/api/events");
   state.firebaseEvents = events;
@@ -699,6 +719,8 @@ function bindEvents() {
       lockVault();
       state.firebaseEvents?.close();
       state.firebaseEvents = null;
+      clearInterval(state.realtimePollingTimer);
+      state.realtimePollingTimer = null;
       state.user = null;
       state.csrfToken = "";
       showAuthScreen("login");

@@ -13,4 +13,5 @@ firebase-import*
 data/
 node_modules/
 .wrangler/
+.netlify/
 npm-debug.log*
