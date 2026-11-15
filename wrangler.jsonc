@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "autocatat",
+  "main": "cloudflare-worker.mjs",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "AUTOCATAT_STORE_BACKEND": "firebase",
+    "AUTOCATAT_STORE_LOCAL_FALLBACK": "false",
+    "AUTOCATAT_TELEGRAM_WEBHOOK_ONLY": "true",
+    "COOKIE_SECURE": "true"
+  }
+}

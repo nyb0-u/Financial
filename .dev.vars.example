@@ -1,0 +1,8 @@
+ADMIN_SETUP_KEY="replace-with-a-long-random-secret"
+AUTOCATAT_STORE_BACKEND="firebase"
+AUTOCATAT_STORE_LOCAL_FALLBACK="false"
+AUTOCATAT_TELEGRAM_WEBHOOK_ONLY="true"
+COOKIE_SECURE="true"
+FIREBASE_DATABASE_URL="https://your-project-default-rtdb.firebaseio.com"
+FIREBASE_SERVICE_ACCOUNT_JSON=""
+TELEGRAM_WEBHOOK_SECRET=""

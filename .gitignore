@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.dev.vars
+credentials/
+*service-account*
+asisstant-nyb0-*.json
+nyb0-asisstant-*.json
+firebase-import*
+*.pem
+*.p12
+*.pfx
+data/
+node_modules/
+.wrangler/
+npm-debug.log*
