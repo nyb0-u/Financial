@@ -16,7 +16,7 @@ Netlify menyajikan dashboard statis dari `public/` dan menjalankan endpoint `/ap
    - `COOKIE_SECURE=true`.
    - Opsional Telegram: `AUTOCATAT_TELEGRAM_WEBHOOK_ONLY=true`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, dan `TELEGRAM_BOT_USERNAME`.
    - Opsional AI: `GEMINI_API_KEY`. Opsional Sheets: `GOOGLE_SHEETS_ID`, `GOOGLE_SHEETS_TAB`, dan `GOOGLE_SERVICE_ACCOUNT_JSON`.
-3. Deploy dari Netlify, buka URL situs, lalu buat akun admin pertama menggunakan `ADMIN_SETUP_KEY`. Setelah berhasil, hapus secret itu dari Netlify dan deploy ulang.
+3. Deploy dari Netlify, buka URL situs, lalu buat akun admin pertama menggunakan `ADMIN_SETUP_KEY`. Username admin adalah `BOOPAW`; setelah berhasil, hapus secret itu dari Netlify dan deploy ulang.
 4. Untuk Telegram, daftarkan webhook ke `https://<nama-situs>.netlify.app/api/telegram/webhook` dengan `secret_token` yang sama dengan `TELEGRAM_WEBHOOK_SECRET`. Function memeriksa header secret Telegram; polling bot tidak dipakai di Netlify.
 
 Jangan masukkan kredensial ke `netlify.toml` atau Git. Atur secret di dashboard Netlify. Jika memakai domain kustom, gunakan domain HTTPS yang sama untuk situs dan webhook. Migrasikan data lama ke Firebase terlebih dahulu; Netlify tidak menyimpan `data/store.json`.
@@ -71,12 +71,12 @@ Persyaratan: Node.js 20 atau lebih baru.
    ```powershell
    npm start
    ```
-4. Buat akun admin pertama dengan kunci setup dan kata sandi minimal 12 karakter. Email admin pertama ditetapkan ke `amjadamrullah911@gmail.com`. Setelah akun dibuat, hapus `ADMIN_SETUP_KEY` dari `.env` lalu mulai ulang server.
+4. Buat akun admin pertama dengan kunci setup dan kata sandi minimal 12 karakter. Username login admin adalah `BOOPAW`; email admin tetap `amjadamrullah911@gmail.com` sebagai alamat pemulihan. Setelah akun dibuat, hapus `ADMIN_SETUP_KEY` dari `.env` lalu mulai ulang server.
 
 ## Akun dan akses bersama
 
 - Dashboard meminta login. Kata sandi di-hash dengan scrypt; sesi menggunakan cookie `HttpOnly`, `SameSite=Strict`, dan perlindungan CSRF.
-- Pengguna dapat mendaftar dengan email dan kata sandi tanpa kode undangan admin. Admin pertama tetap dibuat menggunakan `ADMIN_SETUP_KEY`.
+- Semua akun masuk menggunakan username unik (tidak peka huruf besar/kecil) dan kata sandi. Username `admin` dicadangkan; akun admin pertama memakai `BOOPAW`. Pendaftaran meminta username dan email pemulihan; reset kata sandi melalui email belum tersedia, jadi pengguna masih harus masuk untuk mengganti kata sandi. Akun lama mendapat username otomatis dari bagian email sebelum `@`, kecuali admin pertama yang menggunakan `BOOPAW`.
 - Setiap akun punya anggaran, transaksi, ringkasan, riwayat, dan laporan sendiri. Admin dapat melihat daftar akun dan menonaktifkan akses tanpa menghapus data.
 - Menu **Password vault** menyimpan kredensial website dan media sosial dalam payload AES-GCM yang dienkripsi di browser; derivasi kunci memakai PBKDF2-SHA-256. Server hanya menerima ciphertext. Buat passphrase vault tersendiri minimal 12 karakter atau gunakan generator untuk membuat key acak; key hasil generator dapat disalin atau diunduh sebagai file teks. File tersebut berisi key tanpa enkripsi: simpan di tempat aman dan jangan sampai hilang—tidak ada reset atau pemulihan karena server tidak menyimpan kuncinya. Vault otomatis terkunci saat tab disembunyikan atau setelah 5 menit tanpa aktivitas. Gunakan browser modern melalui HTTPS atau localhost.
 - Pengguna menautkan Telegram dari **Pengaturan → Buat kode tautan**, lalu mengirim `/link KODE` ke bot. Kode berlaku 10 menit.

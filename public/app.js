@@ -155,19 +155,19 @@ function showAuthScreen(mode) {
   ["setup-form", "login-form", "register-form"].forEach((id) => $(`#${id}`).classList.add("hidden"));
   if (mode === "setup") {
     $("#auth-title").textContent = "Buat akun admin";
-    $("#auth-description").textContent = "Selesaikan setup pertama menggunakan kunci admin rahasia dari file .env.";
-    $(".auth-security").textContent = "Kunci setup hanya digunakan untuk membuat akun admin pertama.";
+    $("#auth-description").textContent = "Username admin untuk masuk: BOOPAW.";
+    $(".auth-security").textContent = "Email admin disimpan sebagai alamat pemulihan. Reset lewat email belum tersedia.";
     $("#setup-form").classList.remove("hidden");
   } else if (mode === "register") {
     $("#auth-title").textContent = "Buat akun baru";
-    $("#auth-description").textContent = "Daftar dengan email dan kata sandi untuk mulai mencatat keuangan.";
-    $(".auth-security").textContent = "Tidak perlu kode undangan. Data setiap akun tersimpan terpisah dan privat.";
+    $("#auth-description").textContent = "Buat username untuk masuk dan simpan email pemulihan.";
+    $(".auth-security").textContent = "Username “admin” dicadangkan. Reset kata sandi lewat email belum tersedia.";
     $("#register-form").classList.remove("hidden");
     $("#auth-switch").textContent = "Sudah punya akun? Masuk";
     $("#auth-switch").classList.remove("hidden");
   } else if (mode === "unavailable") {
     $("#auth-title").textContent = "Setup admin belum siap";
-    $("#auth-description").textContent = "Atur ADMIN_SETUP_KEY di file .env, lalu mulai ulang Autocatat untuk membuat akun pertama.";
+    $("#auth-description").textContent = "Atur ADMIN_SETUP_KEY di environment variables server untuk membuat akun admin pertama.";
     $(".auth-security").textContent = "Kunci setup hanya digunakan untuk membuat akun admin pertama.";
   } else if (mode === "service-error") {
     $("#auth-title").textContent = "Status akun tidak tersedia";
@@ -175,7 +175,7 @@ function showAuthScreen(mode) {
     $(".auth-security").textContent = "Tidak ada akun yang dibuat atau diubah.";
   } else {
     $("#auth-title").textContent = "Masuk ke Autocatat";
-    $("#auth-description").textContent = "Kelola keuangan pribadimu dengan aman.";
+    $("#auth-description").textContent = "Masuk menggunakan username dan kata sandi.";
     $(".auth-security").textContent = "Belum punya akun? Daftar gratis tanpa kode undangan.";
     $("#login-form").classList.remove("hidden");
     if (state.authStatus?.hasUsers) {
@@ -186,9 +186,11 @@ function showAuthScreen(mode) {
 }
 
 function renderProfile() {
-  const email = state.user?.email || "Keuangan pribadi";
-  $("#profile-email").innerHTML = `${escapeHtml(email)}<small>${state.user?.role === "admin" ? "Administrator" : "Akun pribadi"}</small>`;
-  $("#profile-avatar").textContent = email.slice(0, 1).toUpperCase();
+  const username = state.user?.username || "Keuangan pribadi";
+  const email = state.user?.email || "";
+  const role = state.user?.role === "admin" ? "Administrator" : "Akun pribadi";
+  $("#profile-email").innerHTML = `${escapeHtml(username)}<small>${escapeHtml(email)} · ${role}</small>`;
+  $("#profile-avatar").textContent = username.slice(0, 1).toUpperCase();
 }
 
 function showAuthenticatedApp() {
@@ -202,7 +204,7 @@ async function completeAuth(result) {
   state.csrfToken = result.csrfToken;
   showAuthenticatedApp();
   await refresh();
-  toast(`Berhasil masuk sebagai ${result.user.email}.`);
+  toast(`Berhasil masuk sebagai ${result.user.username}.`);
 }
 
 async function loadAccountSettings() {
@@ -228,8 +230,8 @@ async function loadAdminUsers() {
   const result = await api("/api/admin/users");
   $("#user-list").innerHTML = result.users.map((user) => `
     <div class="managed-user">
-      <span><b>${escapeHtml(user.email)}</b><small>${user.role === "admin" ? "Admin" : "Pengguna"} · ${user.active ? "Aktif" : "Nonaktif"} · Telegram ${user.telegramLinked ? "tertaut" : "belum tertaut"}</small></span>
-      ${user.active && user.id !== state.user.id ? `<button type="button" data-disable-user="${user.id}" aria-label="Nonaktifkan ${escapeHtml(user.email)}">Nonaktifkan</button>` : ""}
+      <span><b>${escapeHtml(user.username)}</b><small>${escapeHtml(user.email)} · ${user.role === "admin" ? "Admin" : "Pengguna"} · ${user.active ? "Aktif" : "Nonaktif"} · Telegram ${user.telegramLinked ? "tertaut" : "belum tertaut"}</small></span>
+      ${user.active && user.id !== state.user.id ? `<button type="button" data-disable-user="${user.id}" aria-label="Nonaktifkan ${escapeHtml(user.username)}">Nonaktifkan</button>` : ""}
     </div>`).join("") || '<div class="settings-note">Belum ada akun.</div>';
 }
 
@@ -752,7 +754,7 @@ function bindEvents() {
       : money(state.summary.byCurrency[state.currency].balance, state.currency);
   });
   $("#help-button").addEventListener("click", () => {
-    window.alert("1. Buat akun dengan email dan kata sandi tanpa kode undangan.\n2. Catat transaksi lewat tombol Tambah transaksi atau tautkan Telegram dari Pengaturan.\n3. Kirim contoh “makan siang 35rb”, foto struk, atau voice note.\n4. Simpan kredensial di Password vault dengan passphrase vault tersendiri.\n5. Gunakan menu Analisis, Riwayat transaksi, dan Laporan untuk melihat serta mengunduh data.");
+    window.alert("1. Masuk dengan username dan kata sandi; email dipakai sebagai alamat pemulihan.\n2. Buat akun dengan username, email, dan kata sandi tanpa kode undangan.\n3. Catat transaksi lewat tombol Tambah transaksi atau tautkan Telegram dari Pengaturan.\n4. Kirim contoh “makan siang 35rb”, foto struk, atau voice note.\n5. Simpan kredensial di Password vault dengan passphrase vault tersendiri.");
   });
   $("#export-button").addEventListener("click", exportCsv);
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => {

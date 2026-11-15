@@ -72,6 +72,7 @@ test("accounts, sessions, and finance data are isolated by user", async (t) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      username: "member",
       email: "member@example.com",
       password: "another correct horse",
     }),
@@ -90,7 +91,17 @@ test("accounts, sessions, and finance data are isolated by user", async (t) => {
   assert.equal(setup.response.status, 201);
   admin = { cookie: sessionCookie(setup.response), csrf: setup.body.csrfToken, user: setup.body.user };
   assert.equal(admin.user.role, "admin");
+  assert.equal(admin.user.username, "BOOPAW");
   assert.equal(admin.user.email, "amjadamrullah911@gmail.com");
+  const { updateStore } = require("../src/store");
+  await updateStore((store) => {
+    delete store.users.find((item) => item.id === admin.user.id).username;
+  });
+  const migratedStatus = await request("/api/auth/status");
+  assert.equal(migratedStatus.response.status, 200);
+  const migratedAdmin = JSON.parse(await fs.readFile(path.join(testDirectory, "store.json"), "utf8"))
+    .users.find((item) => item.id === admin.user.id);
+  assert.equal(migratedAdmin.username, "BOOPAW");
   const emptyVault = await request("/api/vault", { cookie: admin.cookie });
   assert.equal(emptyVault.response.status, 200);
   assert.equal(emptyVault.body.vault, null);
@@ -167,6 +178,7 @@ test("accounts, sessions, and finance data are isolated by user", async (t) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      username: "member",
       email: "member@example.com",
       password: "another correct horse",
     }),
@@ -174,8 +186,29 @@ test("accounts, sessions, and finance data are isolated by user", async (t) => {
   assert.equal(registration.response.status, 201);
   member = registration.body.user;
   assert.equal(member.role, "user");
+  assert.equal(member.username, "member");
   memberCookie = sessionCookie(registration.response);
   memberCsrf = registration.body.csrfToken;
+  const reservedUsername = await request("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: "ADMIN",
+      email: "reserved@example.com",
+      password: "another correct horse",
+    }),
+  });
+  assert.equal(reservedUsername.response.status, 400);
+  const duplicateUsername = await request("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: "MEMBER",
+      email: "second-member@example.com",
+      password: "another correct horse",
+    }),
+  });
+  assert.equal(duplicateUsername.response.status, 409);
   const memberVault = await request("/api/vault", { cookie: memberCookie });
   assert.equal(memberVault.response.status, 200);
   assert.equal(memberVault.body.vault, null);
@@ -269,10 +302,16 @@ test("accounts, sessions, and finance data are isolated by user", async (t) => {
   const login = await request("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "member@example.com", password: "another correct horse" }),
+    body: JSON.stringify({ username: "MeMbEr", password: "another correct horse" }),
   });
   assert.equal(login.response.status, 200);
   assert.equal(login.body.user.id, member.id);
+  const emailLogin = await request("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: "member@example.com", password: "another correct horse" }),
+  });
+  assert.equal(emailLogin.response.status, 401);
 
   const disableMember = await request(`/api/admin/users/${member.id}`, {
     method: "DELETE",
@@ -283,7 +322,7 @@ test("accounts, sessions, and finance data are isolated by user", async (t) => {
   const disabledLogin = await request("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "member@example.com", password: "another correct horse" }),
+    body: JSON.stringify({ username: "member", password: "another correct horse" }),
   });
   assert.equal(disabledLogin.response.status, 401);
 

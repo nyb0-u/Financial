@@ -21,17 +21,19 @@
         <div class="auth-form-wrap">
           <form id="setup-form" class="auth-form hidden">
             <label class="form-field"><span>Kunci setup admin</span><input name="setupKey" type="password" autocomplete="off" required></label>
+            <label class="form-field"><span>Username admin</span><input name="username" type="text" value="BOOPAW" autocomplete="username" readonly></label>
             <label class="form-field"><span>Email admin</span><input name="email" type="email" value="amjadamrullah911@gmail.com" autocomplete="email" readonly></label>
             <label class="form-field"><span>Kata sandi (minimal 12 karakter)</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
             <button class="primary-button auth-submit" type="submit">Buat akun admin</button>
           </form>
           <form id="login-form" class="auth-form hidden">
-            <label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="username" required></label>
+            <label class="form-field"><span>Username</span><input name="username" type="text" autocomplete="username" placeholder="BOOPAW" minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,31}" required></label>
             <label class="form-field"><span>Kata sandi</span><input name="password" type="password" autocomplete="current-password" required></label>
             <button class="primary-button auth-submit" type="submit">Masuk</button>
           </form>
           <form id="register-form" class="auth-form hidden">
-            <label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
+            <label class="form-field"><span>Username untuk login</span><input name="username" type="text" autocomplete="username" placeholder="Contoh: boopaw" minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,31}" required></label>
+            <label class="form-field"><span>Email untuk pemulihan akun</span><input name="email" type="email" autocomplete="email" required></label>
             <label class="form-field"><span>Kata sandi (minimal 12 karakter)</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
             <button class="primary-button auth-submit" type="submit">Buat akun</button>
           </form>

@@ -50,6 +50,12 @@ function normalizeEmail(value) {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
 }
 
+function normalizeUsername(value) {
+  if (typeof value !== "string") return "";
+  const username = value.trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9._-]{2,31}$/.test(username) ? username : "";
+}
+
 function createSession(userId) {
   const token = createToken();
   const csrfToken = createToken(24);
@@ -90,6 +96,7 @@ function clearSessionCookie(secure) {
 function publicUser(user) {
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     role: user.role,
     monthlyBudget: user.monthlyBudget,
@@ -107,6 +114,7 @@ module.exports = {
   hashPassword,
   hashToken,
   normalizeEmail,
+  normalizeUsername,
   parseCookies,
   publicUser,
   safeEqual,

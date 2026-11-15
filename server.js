@@ -33,6 +33,7 @@ const {
   hashPassword,
   hashToken,
   normalizeEmail,
+  normalizeUsername,
   parseCookies,
   publicUser,
   safeEqual,
@@ -41,6 +42,8 @@ const {
 } = require("./src/auth");
 
 const FIRST_ADMIN_EMAIL = "amjadamrullah911@gmail.com";
+const FIRST_ADMIN_USERNAME = "BOOPAW";
+const RESERVED_USERNAMES = new Set(["admin"]);
 const PUBLIC_DIR = path.join(ROOT, "public");
 let sheetTokenCache = null;
 const authAttempts = new Map();
@@ -59,6 +62,44 @@ function requestedMonth(value) {
     throw Object.assign(new Error("Bulan harus menggunakan format YYYY-MM."), { status: 400 });
   }
   return month;
+}
+
+function generatedUsername(user) {
+  if (normalizeEmail(user.email) === FIRST_ADMIN_EMAIL) return FIRST_ADMIN_USERNAME;
+  const localPart = typeof user.email === "string" ? user.email.split("@")[0] : "";
+  const candidate = localPart.replace(/[^a-z0-9._-]/gi, "").replace(/^[^a-z0-9]+/i, "").slice(0, 32);
+  return normalizeUsername(candidate) ? candidate : `user${user.id.replace(/[^a-f0-9]/gi, "").slice(0, 8)}`;
+}
+
+function assignMissingUsernames(users) {
+  const claimed = new Set(
+    ["admin", ...users.map((user) => normalizeUsername(user.username)).filter(Boolean)],
+  );
+  const missing = users
+    .filter((user) => !normalizeUsername(user.username))
+    .sort((left, right) => Number(normalizeEmail(right.email) === FIRST_ADMIN_EMAIL) - Number(normalizeEmail(left.email) === FIRST_ADMIN_EMAIL));
+
+  for (const user of missing) {
+    const base = generatedUsername(user);
+    let username = base;
+    let suffix = 2;
+    while (claimed.has(normalizeUsername(username))) {
+      const ending = String(suffix);
+      suffix += 1;
+      username = `${base.slice(0, 32 - ending.length)}${ending}`;
+    }
+    user.username = username;
+    claimed.add(normalizeUsername(username));
+  }
+}
+
+async function usersWithUsernames() {
+  const store = await readStore();
+  if (store.users.some((user) => !normalizeUsername(user.username))) {
+    await updateStore((current) => assignMissingUsernames(current.users));
+    return readStore();
+  }
+  return store;
 }
 
 function sendJson(response, status, value, headers = {}) {
@@ -378,9 +419,10 @@ function getAuthenticated(request, store) {
   return user && user.active !== false ? { user, session } : null;
 }
 
-function createUser(email, passwordHash, role = "user") {
+function createUser(email, passwordHash, role = "user", username) {
   return {
     id: crypto.randomUUID(),
+    username,
     email,
     passwordHash,
     role,
@@ -569,7 +611,7 @@ async function parseTelegramTransaction(message, text) {
 async function handleTelegramCallback(query) {
   if (!query?.id || !query.from?.id || query.message?.chat?.type !== "private") return;
   const chatId = query.message.chat.id;
-  const store = await readStore();
+  const store = await usersWithUsernames();
   const user = store.users.find((item) => item.telegramUserId === String(query.from.id) && item.active !== false);
   if (!user) {
     await telegramRequest("answerCallbackQuery", {
@@ -662,7 +704,7 @@ async function handleTelegramUpdate(update) {
   const chatId = message.chat.id;
   const reply = (text) => telegramRequest("sendMessage", { chat_id: chatId, text });
   const text = (message.text || message.caption || "").trim();
-  const store = await readStore();
+  const store = await usersWithUsernames();
   let user = store.users.find((item) => item.telegramUserId === String(message.from.id));
   const startCommand = text === "/start" || text.startsWith("/start ");
   const linkMatch = text.match(/^\/link(?:@\w+)?\s+([A-Za-z0-9_-]{20,80})$/);
@@ -746,7 +788,7 @@ async function handleTelegramUpdate(update) {
   }
   if (startCommand || text === "/help") {
     await reply(
-      `Hai! Autocatat sudah terhubung ke ${user.email}. Kirim transaksi seperti “makan siang 35rb”, foto struk, atau voice note. Gunakan /dashboard untuk ringkasan bulan ini.`,
+      `Hai! Autocatat sudah terhubung ke ${user.username}. Kirim transaksi seperti “makan siang 35rb”, foto struk, atau voice note. Gunakan /dashboard untuk ringkasan bulan ini.`,
     );
     return;
   }
@@ -856,7 +898,7 @@ async function handleRequest(request, response) {
     }
 
     if (pathname === "/api/auth/status" && method === "GET") {
-      const store = await readStore();
+      const store = await usersWithUsernames();
       sendJson(response, 200, {
         hasUsers: store.users.length > 0,
         setupEnabled: store.users.length === 0 && Boolean(process.env.ADMIN_SETUP_KEY),
@@ -877,7 +919,7 @@ async function handleRequest(request, response) {
         return;
       }
       const passwordHash = await hashPassword(input.password);
-      const user = createUser(FIRST_ADMIN_EMAIL, passwordHash, "admin");
+      const user = createUser(FIRST_ADMIN_EMAIL, passwordHash, "admin", FIRST_ADMIN_USERNAME);
       const authSession = createSession(user.id);
       await updateStore((store) => {
         if (store.users.length) {
@@ -901,14 +943,28 @@ async function handleRequest(request, response) {
         return;
       }
       const input = await readBody(request, 20_000);
+      const username = typeof input.username === "string" ? input.username.trim() : "";
+      const usernameKey = normalizeUsername(username);
+      if (!usernameKey) {
+        sendJson(response, 400, { error: "Username harus 3–32 karakter: huruf, angka, titik, garis bawah, atau tanda hubung." });
+        return;
+      }
+      if (RESERVED_USERNAMES.has(usernameKey)) {
+        sendJson(response, 400, { error: "Username admin tidak boleh digunakan." });
+        return;
+      }
       const email = normalizeEmail(input.email);
       if (!email) {
         sendJson(response, 400, { error: "Alamat email tidak valid." });
         return;
       }
-      const beforeRegistration = await readStore();
+      const beforeRegistration = await usersWithUsernames();
       if (!beforeRegistration.users.length) {
         sendJson(response, 403, { error: "Admin pertama harus dibuat sebelum pendaftaran akun dibuka." });
+        return;
+      }
+      if (beforeRegistration.users.some((item) => normalizeUsername(item.username) === usernameKey)) {
+        sendJson(response, 409, { error: "Username sudah digunakan." });
         return;
       }
       if (beforeRegistration.users.some((item) => item.email === email)) {
@@ -916,7 +972,7 @@ async function handleRequest(request, response) {
         return;
       }
       const passwordHash = await hashPassword(input.password);
-      const user = createUser(email, passwordHash);
+      const user = createUser(email, passwordHash, "user", username);
       const authSession = createSession(user.id);
       await updateStore((store) => {
         if (!store.users.length) {
@@ -924,6 +980,9 @@ async function handleRequest(request, response) {
         }
         if (store.users.some((item) => item.email === email)) {
           throw Object.assign(new Error("Email sudah terdaftar."), { status: 409 });
+        }
+        if (store.users.some((item) => normalizeUsername(item.username) === usernameKey)) {
+          throw Object.assign(new Error("Username sudah digunakan."), { status: 409 });
         }
         store.users.push(user);
         store.sessions = store.sessions.filter((item) => item.expiresAt > Date.now());
@@ -943,12 +1002,12 @@ async function handleRequest(request, response) {
         return;
       }
       const input = await readBody(request, 20_000);
-      const email = normalizeEmail(input.email);
-      const store = await readStore();
-      const user = store.users.find((item) => item.email === email && item.active !== false);
+      const username = normalizeUsername(input.username);
+      const store = await usersWithUsernames();
+      const user = store.users.find((item) => normalizeUsername(item.username) === username && item.active !== false);
       const passwordHash = user?.passwordHash || `scrypt$${"00".repeat(16)}$${"00".repeat(64)}`;
       if (!(await verifyPassword(typeof input.password === "string" ? input.password : "", passwordHash)) || !user) {
-        sendJson(response, 401, { error: "Email atau kata sandi salah." });
+        sendJson(response, 401, { error: "Username atau kata sandi salah." });
         return;
       }
       const authSession = createSession(user.id);
@@ -965,7 +1024,7 @@ async function handleRequest(request, response) {
 
     if (pathname.startsWith("/api/auth/")) {
       checkRequestOrigin(request);
-      const store = await readStore();
+      const store = await usersWithUsernames();
       const auth = getAuthenticated(request, store);
       if (!auth) {
         sendJson(response, 401, { error: "Silakan masuk untuk melanjutkan." }, {
@@ -1012,7 +1071,7 @@ async function handleRequest(request, response) {
       return;
     }
 
-    const store = await readStore();
+    const store = await usersWithUsernames();
     const auth = getAuthenticated(request, store);
     if (!auth) {
       sendJson(response, 401, { error: "Silakan masuk untuk melanjutkan." });
@@ -1176,7 +1235,7 @@ async function handleRequest(request, response) {
         sendJson(response, 403, { error: "Hanya admin yang dapat mengelola akun." });
         return;
       }
-      const current = await readStore();
+      const current = await usersWithUsernames();
       sendJson(response, 200, {
         users: current.users.map((user) => ({ ...publicUser(user), active: user.active !== false })),
       });
