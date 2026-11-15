@@ -210,6 +210,19 @@ async function loadLocalStore() {
   return loadStore();
 }
 
+function normalizeStore(store) {
+  if (!store || typeof store !== "object" || Array.isArray(store)) {
+    throw new Error("Format penyimpanan Autocatat tidak valid.");
+  }
+  for (const key of ["linkCodes", "processedTelegramUpdates", "vaults"]) {
+    if (store[key] === undefined) store[key] = [];
+    else if (!Array.isArray(store[key])) {
+      throw new Error(`Format penyimpanan Autocatat tidak valid: ${key} harus berupa array.`);
+    }
+  }
+  return store;
+}
+
 async function saveStore(store) {
   await fs.mkdir(DATA_DIR, { recursive: true });
   const temporary = `${STORE_FILE}.tmp`;
@@ -221,7 +234,7 @@ async function readStore() {
   const config = firebaseConfig();
   if (!config) return loadStore();
   const result = await firebaseRead(config);
-  return result.store || loadLocalStore();
+  return normalizeStore(result.store || await loadLocalStore());
 }
 
 function updateStore(operation) {
@@ -236,7 +249,7 @@ function updateStore(operation) {
 
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const latest = await firebaseRead(config);
-      const store = structuredClone(latest.store || await loadLocalStore());
+      const store = normalizeStore(structuredClone(latest.store || await loadLocalStore()));
       const result = await operation(store);
       const token = await firebaseAccessToken(config);
       const headers = {

@@ -120,7 +120,12 @@ test("Firebase store retries an ETag conflict and persists the latest state", as
   process.env.FIREBASE_SERVICE_ACCOUNT_KEY_FILE = "";
   process.env.FIREBASE_SERVICE_ACCOUNT_JSON = await fs.readFile(keyFile, "utf8");
 
-  let remoteStore = null;
+  let remoteStore = {
+    users: [],
+    sessions: [],
+    invites: [],
+    transactions: [],
+  };
   let version = 0;
   let conflict = true;
   let tokenScopes = [];
@@ -162,11 +167,15 @@ test("Firebase store retries an ETag conflict and persists the latest state", as
   await updateStore((store) => {
     attempts += 1;
     store.transactions.push({ id: "transaction-1", userId: "user-1" });
+    store.linkCodes = store.linkCodes.filter((item) => item.expiresAt > Date.now());
+    store.processedTelegramUpdates = store.processedTelegramUpdates.filter(Boolean);
   });
 
   assert.equal(attempts, 2);
   assert.equal(remoteStore.transactions.length, 1);
   assert.equal(remoteStore.transactions[0].userId, "user-1");
+  assert.deepEqual(remoteStore.linkCodes, []);
+  assert.deepEqual(remoteStore.processedTelegramUpdates, []);
   assert.deepEqual(tokenScopes, [
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/firebase.database",
