@@ -534,8 +534,19 @@ async function telegramRequest(method, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(`Telegram ${method} gagal: ${result.description || response.status}`);
+  let result;
+  try {
+    result = await response.json();
+  } catch (error) {
+    throw new Error(
+      `Telegram ${method} mengembalikan respons yang tidak valid (HTTP ${response.status}): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  if (!response.ok || !result.ok) {
+    throw new Error(`Telegram ${method} gagal (HTTP ${response.status}): ${result.description || "respons tidak menyertakan alasan."}`);
+  }
   return result.result;
 }
 
@@ -702,10 +713,19 @@ async function handleTelegramUpdate(update) {
   const message = update.message;
   if (!message?.chat?.id || message.chat.type !== "private" || !message.from?.id) return;
   const chatId = message.chat.id;
-  const reply = (text) => telegramRequest("sendMessage", { chat_id: chatId, text });
+  const updateId = Number.isSafeInteger(update.update_id) ? update.update_id : null;
+  const reply = async (text, context = "message reply") => {
+    try {
+      return await telegramRequest("sendMessage", { chat_id: chatId, text });
+    } catch (error) {
+      console.error(`Telegram ${context} failed.`, {
+        updateId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  };
   const text = (message.text || message.caption || "").trim();
-  const store = await usersWithUsernames();
-  let user = store.users.find((item) => item.telegramUserId === String(message.from.id));
   const startCommand = text === "/start" || text.startsWith("/start ");
   const linkMatch = text.match(/^\/link(?:@\w+)?\s+([A-Za-z0-9_-]{20,80})$/);
   if (linkMatch) {
@@ -729,14 +749,27 @@ async function handleTelegramUpdate(update) {
         }
         target.telegramUserId = String(message.from.id);
         linkCode.usedAt = Date.now();
-        user = target;
       });
-      await reply("✅ Telegram berhasil ditautkan ke akun Autocatat kamu. Transaksi pribadi kini bisa dicatat lewat chat ini.");
     } catch (error) {
-      await reply(`Belum bisa menautkan akun: ${error.message}`);
+      console.error("Telegram /link processing failed.", {
+        updateId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await reply(
+        `Belum bisa menautkan akun: ${error instanceof Error ? error.message : String(error)}`,
+        "/link failure reply",
+      );
+      return;
     }
+    await reply(
+      "✅ Telegram berhasil ditautkan ke akun Autocatat kamu. Transaksi pribadi kini bisa dicatat lewat chat ini.",
+      "/link success reply",
+    );
     return;
   }
+
+  const store = await usersWithUsernames();
+  const user = store.users.find((item) => item.telegramUserId === String(message.from.id));
   if (!user) {
     if (startCommand) {
       await reply("Selamat datang di Autocatat! Buat akun atau masuk ke dashboard Autocatat terlebih dahulu, lalu buka Pengaturan → Hubungkan Telegram untuk membuat kode tautan. Setelah itu kirim /link KODE ke bot ini.");

@@ -30,13 +30,53 @@ function jsonResponse(status, value) {
 }
 
 async function handleTelegramWebhook(request) {
-  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const rawExpectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const expectedSecret = typeof rawExpectedSecret === "string" ? rawExpectedSecret.trim() : "";
   const suppliedSecret = request.headers.get("x-telegram-bot-api-secret-token");
-  if (!process.env.TELEGRAM_BOT_TOKEN || !expectedSecret) {
-    return jsonResponse(503, { error: "Webhook Telegram belum dikonfigurasi." });
+  const botTokenConfigured = typeof process.env.TELEGRAM_BOT_TOKEN === "string" &&
+    Boolean(process.env.TELEGRAM_BOT_TOKEN.trim());
+
+  if (!botTokenConfigured || !expectedSecret) {
+    console.error("Telegram webhook configuration is incomplete.", {
+      botTokenConfigured,
+      webhookSecretConfigured: Boolean(expectedSecret),
+    });
+    return jsonResponse(503, {
+      error: "Webhook Telegram belum dikonfigurasi.",
+      detail: "TELEGRAM_BOT_TOKEN dan TELEGRAM_WEBHOOK_SECRET harus tersedia untuk Functions.",
+    });
   }
+
+  if (rawExpectedSecret !== expectedSecret) {
+    console.warn("Telegram webhook secret has leading or trailing whitespace; comparing its trimmed value.", {
+      rawLength: rawExpectedSecret.length,
+      trimmedLength: expectedSecret.length,
+    });
+  }
+
+  if (!/^[A-Za-z0-9_-]{1,256}$/.test(expectedSecret)) {
+    console.error("TELEGRAM_WEBHOOK_SECRET contains unsupported whitespace or characters.", {
+      length: rawExpectedSecret.length,
+      hasWhitespaceOrInvisibleCharacters: /[\s\u200B-\u200D\uFEFF]/u.test(rawExpectedSecret),
+    });
+    return jsonResponse(503, {
+      error: "Konfigurasi TELEGRAM_WEBHOOK_SECRET tidak valid.",
+      detail: "Gunakan 1–256 karakter A-Z, a-z, 0-9, garis bawah, atau tanda hubung tanpa spasi.",
+    });
+  }
+
   if (!safeEqual(suppliedSecret, expectedSecret)) {
-    return jsonResponse(403, { error: "Webhook Telegram tidak valid." });
+    console.warn("Telegram webhook rejected because the secret header did not match.", {
+      headerPresent: suppliedSecret !== null,
+      headerLength: suppliedSecret?.length || 0,
+      expectedLength: expectedSecret.length,
+      headerHasWhitespaceOrInvisibleCharacters:
+        typeof suppliedSecret === "string" && /[\s\u200B-\u200D\uFEFF]/u.test(suppliedSecret),
+    });
+    return jsonResponse(403, {
+      error: "Webhook Telegram tidak valid.",
+      detail: "Header X-Telegram-Bot-Api-Secret-Token tidak cocok dengan TELEGRAM_WEBHOOK_SECRET.",
+    });
   }
 
   const body = await request.text();
@@ -47,7 +87,10 @@ async function handleTelegramWebhook(request) {
   let update;
   try {
     update = JSON.parse(body);
-  } catch {
+  } catch (error) {
+    console.warn("Telegram webhook received invalid JSON.", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return jsonResponse(400, { error: "Format update Telegram tidak valid." });
   }
 
@@ -55,8 +98,16 @@ async function handleTelegramWebhook(request) {
     await handleTelegramUpdate(update);
     return jsonResponse(200, { ok: true });
   } catch (error) {
-    console.error("Telegram webhook failed:", error.message);
-    return jsonResponse(500, { error: "Update Telegram gagal diproses." });
+    console.error("Telegram webhook update processing failed.", {
+      updateId: Number.isSafeInteger(update?.update_id) ? update.update_id : null,
+      hasMessage: Boolean(update?.message),
+      hasCallbackQuery: Boolean(update?.callback_query),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return jsonResponse(500, {
+      error: "Update Telegram gagal diproses.",
+      updateId: Number.isSafeInteger(update?.update_id) ? update.update_id : null,
+    });
   }
 }
 
